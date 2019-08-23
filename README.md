@@ -5,8 +5,7 @@ Skrypt składa się z dwóch głównych części (funkcji). Pierwsza z nich twor
 
 ## Środowisko
 
-* Python 3.6.6
-** psycopg2
+* Python 3.6.6 / pakiet psycopg2
 
 * PostgreSQL
 
