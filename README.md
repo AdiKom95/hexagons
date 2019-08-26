@@ -1,23 +1,23 @@
-# Siatka heksagonalna
+# Hexagonal grid
 
-Skrypt składa się z dwóch głównych części (funkcji). Pierwsza z nich tworzy siatkę złożoną z sześciokątów foremnych, druga służy do obliczania statystyk będących podstawą do tworzenia map gęstości na bazie heksagonów.
-
-
-## Środowisko
-
-* Python 3.6.6 / pakiet psycopg2
-
-* PostgreSQL
+This script consist of two main parts (functions). The first of them creates a grid of regular hexagons, the second is used to calculate statistics that are the basis for creating density maps based on hexagons.
 
 
-## Inspiracje
+## Environment
+
+* Python 3.6.6 / packages: psycopg2
+
+* PostgreSQL 9.5 & PostGIS 2.3.3
+
+
+## Inspiration
 
 http://trac.osgeo.org/postgis/wiki/UsersWikiGenerateHexagonalGrid
 
 
-## Kontakt
+## Contact
 
-mail: adi@sortsk.pl
+e-mail: adi@sortsk.pl
 
 
 
