@@ -7,30 +7,41 @@ Created on Wed Jul 10 13:30:21 2019
 
 
 
-### Biblioteki
+### Packages
 
 import psycopg2
 
 
-### Zmienne globalne
+### Global variables
 
-#Paramtery do polaczenia z baza danych 
-nazwa_bazy = '******'
-uzytkownik = '******' 
-haslo = '*****' 
-
-
-
-################################ CZESC I - SIATKA HEKSAGONALNA ##################################
+#Database connection parameters
+nazwa_bazy = 'database_name'
+uzytkownik = 'user_name' 
+haslo = 'password' 
 
 
-def siatka_heksagonalna(srid = 4326, offset_y = 0.1, warstwa_siatki = 'hex_grid_n', warstwa_zasiegu = 'baea_nests'):
+
+################################ PART I - HEXAGONAL GRID ##################################
+
+
+#Function arguments
+
+srid = 4326 # EPSG Code - Coordinate System
+offset_y  = 0.1 # Side length of the hexagon
+warstwa_siatki = "hex_grid_name" # The name of the grid you want to create
+warstwa_zasiegu = "coverage_layer" # The name of the layer for which area you want to draw the grid
+
+
+
+def siatka_heksagonalna(srid, offset_y, warstwa_siatki, warstwa_zasiegu):
         
     """
     
-    Funkcja pobiera od uzytkownika parametry takie jak: uklad wspolrzednych, dlugosc boku heksagonu - offeet_y, nazwe warstwy, do ktorej zasiegu ma zostac wyrysowana siatka heksagonow oraz nazwe siatki szesciokatow foremnych.
+    The function receives from the user following arguments: srid - coordinate system, offset_y - side length of the hexagon, warstwa_siatki - name of the layer storing the grid of regular hexagons, warstwa_zasiegu - the name of the layer for which area you want to draw the grid. 
+    
+    
     """
-    ### Nawiazywanie polaczenia z baza 
+    ### Connecting with database
         
     try:
         
@@ -38,16 +49,16 @@ def siatka_heksagonalna(srid = 4326, offset_y = 0.1, warstwa_siatki = 'hex_grid_
         print('OK')
     
     except:
-        print('Cos poszlo nie tak...')
+        print('Something went wrong...')
         
         
-    ### Utworzenie kursora
+    ### Creating a cursor
         
     cur = conn.cursor()
     
     
     
-    ## Zapytanie - zasiegi
+    ## Query - range
     
     query3 = """select min(ST_XMin(geom)) as minX , max(ST_XMax(geom)) as maxX, min(ST_YMin(geom)) as minY, max(ST_YMax(geom)) as maxY from {warstwa_zasiegu};""".format(warstwa_zasiegu = warstwa_zasiegu)
     
@@ -59,9 +70,9 @@ def siatka_heksagonalna(srid = 4326, offset_y = 0.1, warstwa_siatki = 'hex_grid_
     
     
     
-    offset_x = offset_y*pow(3,1/2)/2  # offset_x - wysokosc trojkata rownobocznego 
+    offset_x = offset_y*pow(3,1/2)/2  # offset_x - the height of an equilateral triangle
     
-    offset2_x = offset_x*2  # prawdziwe przesuniecie, roznica miedzy heksagonami w poziomie 
+    offset2_x = offset_x*2  # real shift, horizontal difference between hexagons
     
     
     ldX,ldY = minX - offset_x, minY-0.5*offset_y
@@ -72,21 +83,21 @@ def siatka_heksagonalna(srid = 4326, offset_y = 0.1, warstwa_siatki = 'hex_grid_
     sdX, sdY = minX, minY - offset_y
     
     
-    offset2_y = offset_y*3  # prawdziwe przesuniecie - roznica miedzy heksagonami w pionie
+    offset2_y = offset_y*3  # real shift - vertical difference between hexagons
     
     
-    ## Obliczenie wartosci maksymalnej dla funkcji SQL - generate_series
+    ## Calculation of the maximum value for the SQL function - generate_series
     
-    zasiegX = abs(maxX - minX) # roznica max - min w poziomie - zasieg warstwy 
-    offsety_w_x = int(round(zasiegX/offset2_x + 1,0)) # ilosc szesciokatow foremnych, ktore powinny pokrywac warstwe w poziomie / 1 naddatku
-    ilosc_x = offsety_w_x * offset2_x # obliczenie zasiegu granicznego dla szesciokatow - konieczne dla funkcji SQL
+    zasiegX = abs(maxX - minX) # difference  max - min horizontally - layer extent 
+    offsety_w_x = int(round(zasiegX/offset2_x + 1,0)) # the number of regular hexagons that should cover the horizontal layer / 1 in addition
+    ilosc_x = offsety_w_x * offset2_x # calculation of the boundary range for hexagons - necessary for the SQL function
     
-    zasiegY = abs(maxY - minY) # kroki analogiczne dla pokrycia w pionie 
+    zasiegY = abs(maxY - minY) # analogous steps for vertical coverage
     offsety_w_y = int(round(zasiegY/offset2_y + 1,0))
     ilosc_y = offsety_w_y * offset2_y 
     
     
-    ## Zapytanie tworzace relacje w bazie przechowujaca szesciokaty foremne
+    ## Query creating table in the database storing regular hexagons
     
     query2= """
     create TABLE {warstwa_siatki} (gid serial not null primary key);
@@ -108,36 +119,44 @@ def siatka_heksagonalna(srid = 4326, offset_y = 0.1, warstwa_siatki = 'hex_grid_
     
     
     
-    ### UWAGI - offset Y to tak naprawde dlugosc boku
-    
     try:
         cur.execute(query2)
-        print('wszystko gra')
+        print('OK')
     except:
-        print('cos poszlo nie tak')
+        print('Something went wrong')
     
     
     
-    #Potwierdzenie wykonanej operacji tworzenia tabeli
+    #Commit for table creating operation
     conn.commit()
     
     conn.close()
 
 
-############################ II ######################################
-###########  ANALIZA STATYSTYCZNA NA PODSTAWIE HEKSAGONOW ############
+############################ PART II ######################################
+###########  STATISTICAL ANALYSIS BASED ON HEXAGONES ############
+
+
+#Function arguments
+
+
+warstwa_siatki = "hex_grid_name" # The name of the grid you created
+warstwa_zasiegu = "coverage_layer" # The name of the layer you want to calculate statistics based on
+warstwa_docelowa = "target_layer" # The name of layer you want to create - it will contain collectd hexagonal stats
+pole_wagowe= 0 # Argument with the default value of zero, do not change it in the first version of the code
 
 
 
-def statystyki_heksagony(warstwa_zasiegu = "gbh_rookeries", warstwa_docelowa = "nowa_04", pole_wagowe=0, warstwa_siatki = 'hex_grid_3'):
+def statystyki_heksagony(warstwa_zasiegu, warstwa_docelowa, pole_wagowe, warstwa_siatki):
     """
-    Funkcja pobiera od uzytkownika informacje o warstwie, na podstawie ktorej ma zostac okreslona wartosciowosc szesciokatow foremnych. Dodatkowo pozwala na wybor pola wagowego. 
-    W przypadku, gdy parametr pola wagowego pozostaje pusty, wartosci heksagonow zostaja obliczone na podstawie: dla punktow - ilosci obiektow, dla linii - dlugosci linii, dla poligonow - powierzchni poligonow.
+    
+    The function calculates statistics based on the drawn hexagons.
+    
     
     """
     
     
-    #### PRZYGOTOWANIE POLACZAENIA Z BAZA DANYCH
+    #### Connecting with database
     
     try:
     
@@ -145,76 +164,76 @@ def statystyki_heksagony(warstwa_zasiegu = "gbh_rookeries", warstwa_docelowa = "
         print('OK')
 
     except:
-        print('Cos poszlo nie tak...')
+        print('Something went wrong...')
     
     
     
-    cur = conn.cursor() # Utworzenie kursora
+    cur = conn.cursor() # Creating cursor
     
     
-    query = "select distinct(st_geometrytype(geom)) from {};".format(warstwa_zasiegu) # zapytanie pobierajace typ geometrii warstwy
+    query = "select distinct(st_geometrytype(geom)) from {};".format(warstwa_zasiegu) # query retrieving the layer geometry type
     cur.execute(query)
     typ_warstwy = cur.fetchone()
-    typ_warstwy=str(list(typ_warstwy)) # konwersja na string - porownanie znak po znaku
+    typ_warstwy=str(list(typ_warstwy)) # string conversion - character-by-character comparison
     
     
-    ### WARSTWA PUNKTOWA ###
+    ### POINT LAYER ###
     
     if typ_warstwy == "['ST_Point']" or "['ST_MultiPoint']":
         if pole_wagowe != 0:
             query2 = " "
-            print("pierwszy if")
+            print("first if")
         else:
             try:
                 query2 = "select a.gid, a.geom, count(b.geom) INTO {warstwa_docelowa} from {warstwa_siatki} as a, {warstwa_zasiegu} as b where st_intersects(a.geom, b.geom)=true group by a.gid; alter table {warstwa_docelowa} ADD PRIMARY KEY (gid); ".format(warstwa_docelowa = warstwa_docelowa, warstwa_zasiegu = warstwa_zasiegu, warstwa_siatki = warstwa_siatki)
                 cur.execute(query2)
                 conn.commit()
                 conn.close()
-                print("wszystko gra")
+                print("All rigtht")
             except:
-                print("Cos poszlo nie tak dla punktu...")
+                print("Something went wrong for point...")
     else: 
-        print('nie widzi ST_Point...')
+        print('does not see ST_Point...')
         
     
     
-    ### WARSTWA LINIOWA ###
+    ### LINE LAYER ###
     
     if typ_warstwy == "['ST_MultiLineString']":
         if pole_wagowe != 0:
             query2 = " "
-            print("pierwszy if")
+            print("first if")
         else:
             try:
                 query2 = "select sum(st_length(st_intersection(a.geom,b.geom))),a.geom, a.gid INTO {} from {warstwa_siatki} as a, {} as b where st_intersects(b.geom, a.geom) group by a.gid;".format(warstwa_docelowa, warstwa_zasiegu, warstwa_siatki=warstwa_siatki)
                 cur.execute(query2)
                 conn.commit()
                 conn.close()
-                print("wszystko gra")
+                print("All right")
             except:
-                print("Cos poszlo nie tak dla linii...")
+                print("Something went wrong for line...")
     else: 
-        print('nie widzi ST_MultiLineString...')
+        print('does not see ST_MultiLineString...')
    
     
     
-    ### WARSTWA POLIGONOWA ###
+    ### POLYGON LAYER ###
     
     if typ_warstwy == "['ST_MultiPolygon']":
         if pole_wagowe != 0:
             query2 = " "
-            print("pierwszy if")
+            print("first if")
         else:
             try:
                 query2 = "select sum(st_area(st_intersection(a.geom,b.geom))),a.geom, a.gid INTO {warstwa_docelowa} from {warstwa_siatki} as a, {warstwa_zasiegu} as b where st_intersects(b.geom, a.geom)  group by a.gid;".format(warstwa_docelowa = warstwa_docelowa, warstwa_zasiegu = warstwa_zasiegu, warstwa_siatki=warstwa_siatki)
                 cur.execute(query2)
                 conn.commit()
                 conn.close()
-                print("wszystko gra")
+                print("All right")
             except:
-                print("Cos poszlo nie tak dla poligonu...")
+                print("Something went wrong for polygon...")
     else: 
-        print('nie widzi ST_MultiPolygon...')
+        print('does not see ST_MultiPolygon...')
     
         
         
